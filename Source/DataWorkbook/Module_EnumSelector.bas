@@ -1,0 +1,222 @@
+Attribute VB_Name = "Module_EnumSelector"
+Option Explicit
+
+' --- Constants ---
+Private Const REF_FILE_NAME As String = "列舉定義(企劃用).xlsx"
+Private Const DATA_SUB_HEADER As String = "定義(巨集顯示)"
+
+' --- Global Cache ---
+' Dictionary: Key = EnumName (String), Value = Variant Array of Strings
+Private pEnumCache As Object
+
+' --- Entry Point ---
+' Called by Workbook_SheetSelectionChange in ThisWorkbook
+Public Sub TryLaunchEnumSelector(Target As Range)
+    On Error GoTo ErrorHandler
+    
+    ' 1. Row Validation: Only activate for Row >= 4
+    If Target.Row < 4 Then Exit Sub
+    If Target.Cells.Count > 1 Then Exit Sub ' Multi-select ignored
+    
+    ' 2. Column Validation: Check Row 2 for Enum Key (Header)
+    Dim enumKey As String
+    ' Note: We assume the "Enum Key" is always in Row 2 of the data sheet.
+    enumKey = Trim(CStr(Target.Worksheet.Cells(2, Target.Column).Value))
+    
+    If Len(enumKey) = 0 Then Exit Sub
+    
+    ' 3. Load Definitions (with Caching)
+    Dim enumList As Variant
+    enumList = GetEnumList(enumKey)
+    
+    ' 4. Launch UserForm if data found
+    ' Check if array is allocated and not empty
+    If IsArray(enumList) Then
+        If UBound(enumList) >= LBound(enumList) Then
+            ' Pass data to Form
+            Form_EnumSelect.InitializeWithData enumKey, enumList
+            Form_EnumSelect.Show vbModal
+        End If
+    End If
+    
+    Exit Sub
+
+ErrorHandler:
+    Debug.Print "Error in TryLaunchEnumSelector: " & Err.Description
+End Sub
+
+' --- Cache Management ---
+Private Function GetEnumList(key As String) As Variant
+    ' Initialize Cache if needed (Cold Start)
+    If pEnumCache Is Nothing Then
+        Set pEnumCache = CreateObject("Scripting.Dictionary")
+        ScanReferenceFile
+    End If
+    
+    ' Warm Start Look up
+    If pEnumCache.Exists(key) Then
+        GetEnumList = pEnumCache(key)
+    Else
+        GetEnumList = Null
+    End If
+End Function
+
+Public Sub RefreshCache()
+    Set pEnumCache = Nothing
+    MsgBox "Cache cleared. Next click will reload from reference file.", vbInformation, "Enum Selector"
+End Sub
+
+' --- Reference File Scanning ---
+Private Sub ScanReferenceFile()
+    Dim fso As Object
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    
+    ' 1. Resolve Path
+    Dim wbPath As String, refPath As String
+    wbPath = ThisWorkbook.Path
+    
+    ' Strategy 1: Sibling
+    refPath = fso.BuildPath(wbPath, REF_FILE_NAME)
+    
+    ' Strategy 2: Parent (SVN style - typical for "Reference" folder sibling to "Form" folder)
+    If Not fso.FileExists(refPath) Then
+        refPath = fso.BuildPath(fso.GetParentFolderName(wbPath), REF_FILE_NAME)
+    End If
+    
+    ' Strategy 3: Check "reference" subfolder if we are in root (Development/Agent context)
+    If Not fso.FileExists(refPath) Then
+         Dim devPath As String
+         devPath = fso.BuildPath(wbPath, "reference\" & REF_FILE_NAME)
+         If fso.FileExists(devPath) Then refPath = devPath
+    End If
+    
+    ' Strategy 4: Manual Pick
+    If Not fso.FileExists(refPath) Then
+        If MsgBox("Reference file not found: " & REF_FILE_NAME & vbCrLf & "Browse to select it?", vbQuestion + vbYesNo) = vbYes Then
+            Dim fd As FileDialog
+            Set fd = Application.FileDialog(msoFileDialogFilePicker)
+            fd.Title = "Select " & REF_FILE_NAME
+            If fd.Show = -1 Then
+                refPath = fd.SelectedItems(1)
+            Else
+                Exit Sub ' User cancelled
+            End If
+        Else
+            Exit Sub
+        End If
+    End If
+    
+    ' 2. Open Workbook Read-Only
+    Dim sourceWb As Workbook
+    Dim screenUpdateState As Boolean
+    
+    screenUpdateState = Application.ScreenUpdating
+    Application.ScreenUpdating = False
+    
+    On Error Resume Next
+    Set sourceWb = Workbooks.Open(Filename:=refPath, ReadOnly:=True, UpdateLinks:=False)
+    On Error GoTo 0
+    
+    If sourceWb Is Nothing Then
+        Application.ScreenUpdating = screenUpdateState
+        MsgBox "Failed to open reference file.", vbCritical
+        Exit Sub
+    End If
+    
+    ' 3. Scan Sheets
+    Dim ws As Worksheet
+    For Each ws In sourceWb.Worksheets
+        ScanWorksheet ws
+    Next ws
+    
+    ' 4. Cleanup
+    sourceWb.Close SaveChanges:=False
+    Application.ScreenUpdating = screenUpdateState
+    
+    Debug.Print "Cache built. Total Enums: " & pEnumCache.Count
+End Sub
+
+Private Sub ScanWorksheet(ws As Worksheet)
+    On Error Resume Next
+    Dim rng As Range
+    Set rng = ws.UsedRange
+    If rng Is Nothing Then Exit Sub
+    On Error GoTo 0
+    
+    Dim c As Range
+    Dim firstAddress As String
+    
+    ' Search for the sub-header string
+    Set c = rng.Find(What:=DATA_SUB_HEADER, LookIn:=xlValues, LookAt:=xlWhole)
+    If Not c Is Nothing Then
+        firstAddress = c.Address
+        Do
+            ' Found a definition block.
+            ' Assumption: The "Enum Key" is located at (Row-1, Col-1) relative to this sub-header.
+            ' Example: Key at A10, Sub-Header at B11.
+            
+            If c.Row > 1 And c.Column > 1 Then
+                Dim keyCell As Range
+                Set keyCell = ws.Cells(c.Row - 1, c.Column - 1)
+                
+                Dim keyName As String
+                keyName = Trim(CStr(keyCell.Value))
+                
+                ' Parse Data if Key is valid and not already cached
+                If Len(keyName) > 0 Then
+                     If Not pEnumCache.Exists(keyName) Then
+                        Dim items As Variant
+                        items = ExtractColumnData(ws, c.Row + 1, c.Column)
+                        
+                        ' Only add if we found items
+                        If UBound(items) >= 0 Then
+                            pEnumCache.Add keyName, items
+                        End If
+                    End If
+                End If
+            End If
+            
+            Set c = rng.FindNext(c)
+        Loop While Not c Is Nothing And c.Address <> firstAddress
+    End If
+End Sub
+
+' Extracts a vertical list starting from (startRow, colIndex) downwards until empty cell
+' Returns a Variant Array (0-based)
+Private Function ExtractColumnData(ws As Worksheet, startRow As Long, colIndex As Long) As Variant
+    Dim dataList() As String
+    ReDim dataList(0 To 99) ' Initial buffer
+    Dim count As Long
+    count = 0
+    
+    Dim r As Long
+    r = startRow
+    
+    Do
+        Dim val As String
+        val = Trim(CStr(ws.Cells(r, colIndex).Value))
+        
+        ' Stop at empty cell
+        If Len(val) = 0 Then Exit Do
+        
+        ' Resize buffer if needed
+        If count > UBound(dataList) Then
+            ReDim Preserve dataList(0 To UBound(dataList) + 100)
+        End If
+        
+        dataList(count) = val
+        count = count + 1
+        r = r + 1
+        
+        ' Safety break to prevent infinite loops
+        If r > startRow + 5000 Then Exit Do
+    Loop
+    
+    If count > 0 Then
+        ' Trim to exact size
+        ReDim Preserve dataList(0 To count - 1)
+        ExtractColumnData = dataList
+    Else
+        ExtractColumnData = Array()
+    End If
+End Function
