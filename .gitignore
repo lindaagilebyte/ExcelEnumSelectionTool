@@ -1,0 +1,24 @@
+# Operating System files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE and Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.suo
+*.user
+
+# Build results (Generic)
+build/
+dist/
+bin/
+obj/
+
+# Excel temporary files
+~$*
+
+# Logs
+*.log
