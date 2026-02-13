@@ -5,8 +5,30 @@ Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} Form_EnumSelect
    ClientLeft      =   45
    ClientTop       =   375
    ClientWidth     =   4710
-   OleObjectBlob   =   "Form_EnumSelect.frx":0000
    StartUpPosition =   1  'CenterOwner
+   Begin {A22D307D-8973-41E7-862D-0FCCE8A28E3F} lblHeader 
+      Caption         =   "Please select a value:"
+      Height          =   255
+      Left            =   120
+      TabIndex        =   0
+      Top             =   120
+      Width           =   4455
+   End
+   Begin {8BD21D13-EC42-11CE-9E0D-00AA006002F3} lstEnums 
+      Height          =   2640
+      Left            =   120
+      TabIndex        =   1
+      Top             =   480
+      Width           =   4455
+   End
+   Begin {D7053240-CE69-11CD-A777-00DD01143C57} btnRefresh 
+      Caption         =   "Refresh Cache"
+      Height          =   375
+      Left            =   120
+      TabIndex        =   2
+      Top             =   3240
+      Width           =   4455
+   End
 End
 Attribute VB_Name = "Form_EnumSelect"
 Attribute VB_GlobalNameSpace = False
@@ -22,6 +44,7 @@ Private pTargetKey As String
 Public Sub InitializeWithData(key As String, data As Variant)
     pTargetKey = key
     Me.Caption = "Select: " & key
+    Me.lblHeader.Caption = "Please select a value for: " & key
     
     Me.lstEnums.Clear
     
@@ -29,12 +52,9 @@ Public Sub InitializeWithData(key As String, data As Variant)
     For Each item In data
         Me.lstEnums.AddItem item
     Next item
-    
-    ' Resize form based on content (Optional, stick to fixed size for now)
 End Sub
 
 ' --- Event Handlers ---
-
 Private Sub lstEnums_Click()
     ' Write to Active Cell
     ActiveCell.Value = Me.lstEnums.Value
@@ -44,21 +64,14 @@ Private Sub lstEnums_Click()
 End Sub
 
 Private Sub UserForm_Initialize()
-    ' Default setup
-    Me.lblHeader.Caption = "Please select a value:"
+    ' Default setup happens in InitializeWithData
 End Sub
 
 Private Sub btnRefresh_Click()
     ' Delegate to Module to clear cache
     Module_EnumSelector.RefreshCache
     
-    ' Reload (attempt to re-trigger or just close)
+    ' Close Form
     Unload Me
-    MsgBox "Cache refreshed. Please click the cell again.", vbInformation
+    MsgBox "Cache refreshed. Please click the cell again to reload data.", vbInformation
 End Sub
-
-' --- Control Declarations (Simulated for Import) ---
-' These would normally be in the .frx or designer
-' ListBox: lstEnums
-' Label: lblHeader
-' CommandButton: btnRefresh
