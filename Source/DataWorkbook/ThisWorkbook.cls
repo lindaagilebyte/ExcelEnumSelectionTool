@@ -14,3 +14,9 @@ Private Sub Workbook_SheetSelectionChange(ByVal Sh As Object, ByVal Target As Ra
     ' Delegate logic to the standard module to keep ThisWorkbook clean
     Module_EnumSelector.TryLaunchEnumSelector Target
 End Sub
+
+Private Sub Workbook_BeforeClose(Cancel As Boolean)
+    ' Clear the cache to release memory before Excel closes
+    ' We silently clear the dictionary without popping the MsgBox
+    Module_EnumSelector.SilentRefreshCache
+End Sub

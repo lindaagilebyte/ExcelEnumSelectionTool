@@ -2,6 +2,7 @@ Attribute VB_Name = "Module_EnumSelector"
 Option Explicit
 
 ' --- Constants ---
+Public Const CONST_DEBUG_MODE As Boolean = True ' Set to True to output log to Immediate Window
 Private Const REF_FILE_NAME As String = "列舉定義(企劃用).xlsx"
 Private Const DATA_SUB_HEADER As String = "定義(巨集顯示)"
 
@@ -30,19 +31,20 @@ Public Sub TryLaunchEnumSelector(Target As Range)
     enumList = GetEnumList(enumKey)
     
     ' 4. Launch UserForm if data found
-    ' Check if array is allocated and not empty
     If IsArray(enumList) Then
         If UBound(enumList) >= LBound(enumList) Then
             ' Pass data to Form
             Form_EnumSelect.InitializeWithData enumKey, enumList
             Form_EnumSelect.Show vbModal
+        Else
+            MsgBox "找不到 [" & enumKey & "] 的資料定義，請檢查列舉參考檔。", vbExclamation, "列舉定義缺失"
         End If
     End If
     
     Exit Sub
 
 ErrorHandler:
-    Debug.Print "Error in TryLaunchEnumSelector: " & Err.Description
+    If CONST_DEBUG_MODE Then Debug.Print "[DEBUG] Error in TryLaunchEnumSelector: " & Err.Description
 End Sub
 
 ' --- Cache Management ---
@@ -63,7 +65,12 @@ End Function
 
 Public Sub RefreshCache()
     Set pEnumCache = Nothing
-    MsgBox "Cache cleared. Next click will reload from reference file.", vbInformation, "Enum Selector"
+    MsgBox "快取已清除。下次點擊將重新從參考檔載入。", vbInformation, "Enum Selector"
+End Sub
+
+Public Sub SilentRefreshCache()
+    ' Called silently during Workbook_BeforeClose
+    Set pEnumCache = Nothing
 End Sub
 
 ' --- Reference File Scanning ---
@@ -89,6 +96,8 @@ Private Sub ScanReferenceFile()
          devPath = fso.BuildPath(wbPath, "reference\" & REF_FILE_NAME)
          If fso.FileExists(devPath) Then refPath = devPath
     End If
+    
+    If CONST_DEBUG_MODE Then Debug.Print "[DEBUG] Final target path for Reference: " & refPath
     
     ' Strategy 4: Manual Pick
     If Not fso.FileExists(refPath) Then
@@ -119,21 +128,29 @@ Private Sub ScanReferenceFile()
     
     If sourceWb Is Nothing Then
         Application.ScreenUpdating = screenUpdateState
-        MsgBox "Failed to open reference file.", vbCritical
+        MsgBox "無法開啟列舉參考檔。", vbCritical
         Exit Sub
     End If
     
     ' 3. Scan Sheets
     Dim ws As Worksheet
+    Dim totalSheets As Long, currentSheet As Long
+    totalSheets = sourceWb.Worksheets.Count
+    currentSheet = 1
+    
     For Each ws In sourceWb.Worksheets
+        Application.StatusBar = "正在讀取列舉定義... (Sheet " & currentSheet & " of " & totalSheets & ")"
         ScanWorksheet ws
+        currentSheet = currentSheet + 1
     Next ws
     
     ' 4. Cleanup
+    Application.StatusBar = False
     sourceWb.Close SaveChanges:=False
     Application.ScreenUpdating = screenUpdateState
     
-    Debug.Print "Cache built. Total Enums: " & pEnumCache.Count
+    
+    If CONST_DEBUG_MODE Then Debug.Print "[DEBUG] Cache built. Total Enums cached: " & pEnumCache.Count
 End Sub
 
 Private Sub ScanWorksheet(ws As Worksheet)

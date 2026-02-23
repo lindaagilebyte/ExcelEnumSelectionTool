@@ -43,8 +43,9 @@ Private pTargetKey As String
 ' --- Public API ---
 Public Sub InitializeWithData(key As String, data As Variant)
     pTargetKey = key
-    Me.Caption = "Select: " & key
-    Me.lblHeader.Caption = "Please select a value for: " & key
+    Me.Caption = "選擇數值: " & key
+    Me.lblHeader.Caption = "請為 " & key & " 選擇一個數值:"
+    Me.btnRefresh.Caption = "重新整理快取"
     
     Me.lstEnums.Clear
     
@@ -73,5 +74,5 @@ Private Sub btnRefresh_Click()
     
     ' Close Form
     Unload Me
-    MsgBox "Cache refreshed. Please click the cell again to reload data.", vbInformation
+    MsgBox "快取已清除。請再次點擊儲存格以重新載入資料。", vbInformation
 End Sub
