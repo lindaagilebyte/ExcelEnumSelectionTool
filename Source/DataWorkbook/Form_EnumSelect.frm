@@ -57,8 +57,16 @@ End Sub
 
 ' --- Event Handlers ---
 Private Sub lstEnums_Click()
+    ' Save State for Undo
+    Set Module_EnumSelector.pUndoSheet = ActiveSheet
+    Set Module_EnumSelector.pUndoCell = ActiveCell
+    Module_EnumSelector.pUndoValue = ActiveCell.Value
+
     ' Write to Active Cell
     ActiveCell.Value = Me.lstEnums.Value
+    
+    ' Register Custom Undo
+    Application.OnUndo "復原列舉選擇", "Module_EnumSelector.UndoEnumSelection"
     
     ' Close Form
     Unload Me

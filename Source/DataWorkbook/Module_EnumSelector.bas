@@ -10,6 +10,11 @@ Private Const DATA_SUB_HEADER As String = "定義(巨集顯示)"
 ' Dictionary: Key = EnumName (String), Value = Variant Array of Strings
 Private pEnumCache As Object
 
+' --- Undo State ---
+Public pUndoSheet As Worksheet
+Public pUndoCell As Range
+Public pUndoValue As Variant
+
 ' --- Entry Point ---
 ' Called by Workbook_SheetSelectionChange in ThisWorkbook
 Public Sub TryLaunchEnumSelector(Target As Range)
@@ -71,6 +76,18 @@ End Sub
 Public Sub SilentRefreshCache()
     ' Called silently during Workbook_BeforeClose
     Set pEnumCache = Nothing
+End Sub
+
+' --- Undo Management ---
+Public Sub UndoEnumSelection()
+    On Error Resume Next
+    If Not pUndoCell Is Nothing Then
+        ' Ensure we are on the correct sheet before restoring
+        If pUndoSheet.Name = ActiveSheet.Name Then
+            pUndoCell.Value = pUndoValue
+        End If
+    End If
+    On Error GoTo 0
 End Sub
 
 ' --- Reference File Scanning ---
