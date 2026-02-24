@@ -4,6 +4,9 @@ This tool automatically injects a custom VBA UserForm into Excel files to provid
 
 To improve the user experience and prevent accidental overwrites, the macro triggers on **Double-Click** and requires explicit confirmation.
 
+> [!WARNING]
+> **Undo History Limitation:** Modifying cells via VBA macros (like this tool) natively clears Excel's Undo history. We have implemented a custom `Ctrl+Z` patch, but it has specific limitations. Please read the **Undo Support** section below.
+
 ---
 
 ## Prerequisites
@@ -46,6 +49,18 @@ When the menu opens:
 
 ### 3. Undo Support
 If you click Confirm by mistake, you can immediately hit `Ctrl + Z` (or click Undo in Excel's top bar) to instantly revert the cell back to its original value.
+
+> [!IMPORTANT]
+> **Understanding the Undo Patch Limitations**
+> 
+> Natively, running *any* VBA macro that modifies a worksheet instantly and permanently clears your entire Excel Undo stack. Because this tool uses a macro to write your selection into the cell, your previous history is naturally wiped out.
+> 
+> To mitigate this frustrating Excel quirk, this tool includes a custom `Ctrl+Z` Undo patch. **However, this patch only remembers the single, specific cell modification made by the dropdown menu.** 
+> 
+> **What this means for you:**
+> 1. You **can** undo the immediate selection you just made with the tool.
+> 2. You **cannot** press Undo multiple times to revert changes you made *before* using the tool. 
+> 3. Your older history is still cleared every time you confirm a selection.
 
 ---
 
