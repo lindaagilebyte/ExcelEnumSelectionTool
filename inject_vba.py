@@ -13,11 +13,11 @@ VBA_FILES = {
 
 xlOpenXMLWorkbookMacroEnabled = 52 # Constant for .xlsm
 
-def inject_vba(target_xlsx_path):
+def inject_vba(target_path):
     # 1. Path Validation
-    target_xlsx_path = os.path.abspath(target_xlsx_path)
-    if not os.path.exists(target_xlsx_path):
-        print(f"[Error] Target file not found: {target_xlsx_path}")
+    target_path = os.path.abspath(target_path)
+    if not os.path.exists(target_path):
+        print(f"[Error] Target file not found: {target_path}")
         return False
         
     for key, filename in VBA_FILES.items():
@@ -26,17 +26,28 @@ def inject_vba(target_xlsx_path):
             print(f"[Error] Source VBA file not found: {vba_path}")
             return False
 
-    print(f"Injecting into: {target_xlsx_path}")
+    print(f"Injecting into: {target_path}")
     
-    # 2. Determine Output Path
-    dir_name = os.path.dirname(target_xlsx_path)
-    base_name = os.path.splitext(os.path.basename(target_xlsx_path))[0]
-    output_xlsm_path = os.path.join(dir_name, f"{base_name}_MacroEnabled.xlsm")
+    # 2. Determine Output Path and Save Strategy
+    ext = os.path.splitext(target_path)[1].lower()
+    is_xlsm = (ext == ".xlsm")
     
-    # Clean up old output if it exists
-    if os.path.exists(output_xlsm_path):
-        print(f"Removing old output file: {output_xlsm_path}")
-        os.remove(output_xlsm_path)
+    if is_xlsm:
+        output_xlsm_path = target_path
+        print(f"Target is already .xlsm. Will modify in-place.")
+    else:
+        dir_name = os.path.dirname(target_path)
+        base_name = os.path.splitext(os.path.basename(target_path))[0]
+        output_xlsm_path = os.path.join(dir_name, f"{base_name}_MacroEnabled.xlsm")
+        
+        # Clean up old output if it exists
+        if os.path.exists(output_xlsm_path):
+            print(f"Removing old output file: {output_xlsm_path}")
+            try:
+                os.remove(output_xlsm_path)
+            except Exception as e:
+                print(f"[Error] Cannot delete old file. Please close Excel. {e}")
+                return False
         
     # 3. COM Automation
     print("Starting Excel COM application...")
@@ -46,10 +57,18 @@ def inject_vba(target_xlsx_path):
         excel = win32com.client.DispatchEx("Excel.Application")
         excel.Visible = True
         excel.DisplayAlerts = False
+        excel.EnableEvents = False # Crucial for opening .xlsm without triggering auto-macros
         
+        # Close any auto-recovered or already-open workbooks forcefully
+        try:
+            for w in excel.Workbooks:
+                w.Close(False)
+        except:
+            pass
+
         # Open Workbook
         print("Opening target workbook...")
-        wb = excel.Workbooks.Open(target_xlsx_path)
+        wb = excel.Workbooks.Open(target_path)
         
         # Ensure VBE Access is trusted
         try:
@@ -64,10 +83,16 @@ def inject_vba(target_xlsx_path):
         print("Injecting VBA files...")
         
         # Inject standard Module dynamically to avoid encoding bugs in COM Import()
-        print("  + Creating Module dynamically...")
-        module_comp = vbp.VBComponents.Add(1) # 1 = vbext_ct_StdModule
-        module_comp.Name = "Module_EnumSelector"
-        
+        try:
+            module_comp = vbp.VBComponents("Module_EnumSelector")
+            print("  + Found existing Module_EnumSelector. Clearing...")
+            if module_comp.CodeModule.CountOfLines > 0:
+                module_comp.CodeModule.DeleteLines(1, module_comp.CodeModule.CountOfLines)
+        except:
+            print("  + Creating Module dynamically...")
+            module_comp = vbp.VBComponents.Add(1) # 1 = vbext_ct_StdModule
+            module_comp.Name = "Module_EnumSelector"
+            
         module_path = os.path.abspath(os.path.join(SOURCE_DIR, VBA_FILES["Module"]))
         with open(module_path, 'r', encoding='utf-8') as f:
             module_code_raw = f.read()
@@ -85,9 +110,22 @@ def inject_vba(target_xlsx_path):
         print(f"  + Injected code into {VBA_FILES['Module']}")
         
         # Inject UserForm programmatically to avoid .frx dependency
-        print("  + Creating UserForm dynamically...")
-        form_comp = vbp.VBComponents.Add(3) # 3 = vbext_ct_MSForm
-        form_comp.Name = "Form_EnumSelect"
+        try:
+            form_comp = vbp.VBComponents("Form_EnumSelect")
+            print("  + Found existing Form_EnumSelect. Clearing...")
+            if form_comp.CodeModule.CountOfLines > 0:
+                form_comp.CodeModule.DeleteLines(1, form_comp.CodeModule.CountOfLines)
+            
+            # Remove all existing controls
+            controls = form_comp.Designer.Controls
+            ctrl_names = [c.Name for c in controls]
+            for c_name in ctrl_names:
+                controls.Remove(c_name)
+        except:
+            print("  + Creating UserForm dynamically...")
+            form_comp = vbp.VBComponents.Add(3) # 3 = vbext_ct_MSForm
+            form_comp.Name = "Form_EnumSelect"
+            
         form_comp.Properties("Caption").Value = "Select Value"
         form_comp.Properties("Width").Value = 240
         form_comp.Properties("Height").Value = 220
@@ -188,9 +226,21 @@ def inject_vba(target_xlsx_path):
         # Save and close immediately before Excel tries to compile it
         print(f"  + Injected code into ThisWorkbook")
         
-        # 5. Save as .xlsm
-        print(f"Saving as Macro-Enabled Workbook (.xlsm)...")
-        wb.SaveAs(output_xlsm_path, FileFormat=xlOpenXMLWorkbookMacroEnabled)
+        # Close VBE window if it opened
+        try:
+            excel.VBE.MainWindow.Visible = False
+        except:
+            pass
+
+        # 6. Save Workbook
+        if is_xlsm:
+            print(f"Saving changes to existing workbook...")
+            excel.DisplayAlerts = False
+            wb.Save()
+            wb.Saved = True
+        else:
+            print(f"Saving as Macro-Enabled Workbook (.xlsm)...")
+            wb.SaveAs(output_xlsm_path, FileFormat=xlOpenXMLWorkbookMacroEnabled)
         print(f"Success! Saved to: {output_xlsm_path}")
         return True
         
@@ -206,9 +256,17 @@ def inject_vba(target_xlsx_path):
                 pass
         if excel:
             try:
+                excel.EnableEvents = True
                 excel.Quit()
             except:
                 pass
+                
+        # Force win32com to garbage collect the COM handles
+        wb = None
+        excel = None
+        
+        # Force kill Excel to prevent COM from hanging the python exit
+        os.system("taskkill /F /IM excel.exe > nul 2>&1")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

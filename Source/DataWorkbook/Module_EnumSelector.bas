@@ -143,8 +143,17 @@ Private Sub ScanReferenceFile()
     screenUpdateState = Application.ScreenUpdating
     Application.ScreenUpdating = False
     
+    Dim tempPath As String
+    tempPath = Environ("TEMP") & "\" & REF_FILE_NAME
+    
     On Error Resume Next
-    Set sourceWb = Workbooks.Open(Filename:=refPath, ReadOnly:=True, UpdateLinks:=False)
+    If fso.FileExists(tempPath) Then fso.DeleteFile tempPath, True
+    fso.CopyFile refPath, tempPath, True
+    On Error GoTo 0
+    
+    ' SVN often applies strict read-only locks. We just copy it to TEMP and open that copy safely.
+    On Error Resume Next
+    Set sourceWb = Workbooks.Open(Filename:=tempPath, ReadOnly:=True, UpdateLinks:=False, IgnoreReadOnlyRecommended:=True)
     On Error GoTo 0
     
     If sourceWb Is Nothing Then
@@ -168,6 +177,12 @@ Private Sub ScanReferenceFile()
     ' 4. Cleanup
     Application.StatusBar = False
     sourceWb.Close SaveChanges:=False
+    
+    ' Delete temp file to keep system clean
+    On Error Resume Next
+    fso.DeleteFile tempPath, True
+    On Error GoTo 0
+    
     Application.ScreenUpdating = screenUpdateState
     
     
