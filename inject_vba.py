@@ -92,31 +92,54 @@ def inject_vba(target_xlsx_path):
         form_comp.Properties("Width").Value = 240
         form_comp.Properties("Height").Value = 220
         
-        # Add Label
+        # Create Header Label
         lbl = form_comp.Designer.Controls.Add("Forms.Label.1")
         lbl.Name = "lblHeader"
         lbl.Caption = "Please select a value:"
         lbl.Top = 6
         lbl.Left = 6
-        lbl.Width = 220
+        lbl.Width = 222
         lbl.Height = 12
         
-        # Add ListBox
+        # Create ListBox
         lst = form_comp.Designer.Controls.Add("Forms.ListBox.1")
         lst.Name = "lstEnums"
         lst.Top = 24
         lst.Left = 6
-        lst.Width = 220
+        lst.Width = 222
         lst.Height = 132
         
-        # Add Button
-        btn = form_comp.Designer.Controls.Add("Forms.CommandButton.1")
-        btn.Name = "btnRefresh"
-        btn.Caption = "Refresh Cache"
-        btn.Top = 162
-        btn.Left = 6
-        btn.Width = 220
-        btn.Height = 20
+        # Create Confirm Button
+        btnCnf = form_comp.Designer.Controls.Add("Forms.CommandButton.1")
+        btnCnf.Name = "btnConfirm"
+        btnCnf.Caption = "[確認]"
+        btnCnf.Top = 162
+        btnCnf.Left = 6
+        btnCnf.Width = 100
+        btnCnf.Height = 24
+        
+        # Create Cancel Button
+        btnCan = form_comp.Designer.Controls.Add("Forms.CommandButton.1")
+        btnCan.Name = "btnCancel"
+        btnCan.Caption = "[取消]"
+        btnCan.Top = 162
+        btnCan.Left = 128
+        btnCan.Width = 100
+        btnCan.Height = 24
+        
+        # Create Refresh Button
+        btnRef = form_comp.Designer.Controls.Add("Forms.CommandButton.1")
+        btnRef.Name = "btnRefresh"
+        btnRef.Caption = "Refresh Cache"
+        btnRef.Top = 192
+        btnRef.Left = 6
+        btnRef.Width = 222
+        btnRef.Height = 24
+        
+        # Set Form Properties
+        form_comp.Properties("Caption").Value = "Select Value"
+        form_comp.Properties("Width").Value = 240
+        form_comp.Properties("Height").Value = 250
         
         # Inject UserForm code
         form_path = os.path.abspath(os.path.join(SOURCE_DIR, VBA_FILES["Form"]))

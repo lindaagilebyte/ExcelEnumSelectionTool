@@ -57,6 +57,16 @@ End Sub
 
 ' --- Event Handlers ---
 Private Sub lstEnums_Click()
+    ' User just clicked an item - do nothing until Confirm is pressed
+End Sub
+
+Private Sub btnConfirm_Click()
+    ' Ensure an item is actually selected
+    If IsNull(Me.lstEnums.Value) Then
+        MsgBox "請先選擇一個選項。", vbExclamation, "提示"
+        Exit Sub
+    End If
+
     ' Save State for Undo
     Set Module_EnumSelector.pUndoSheet = ActiveSheet
     Set Module_EnumSelector.pUndoCell = ActiveCell
@@ -69,6 +79,11 @@ Private Sub lstEnums_Click()
     Application.OnUndo "復原列舉選擇", "Module_EnumSelector.UndoEnumSelection"
     
     ' Close Form
+    Unload Me
+End Sub
+
+Private Sub btnCancel_Click()
+    ' Cancel operation and close form
     Unload Me
 End Sub
 

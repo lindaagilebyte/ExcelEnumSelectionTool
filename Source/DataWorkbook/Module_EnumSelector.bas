@@ -16,20 +16,22 @@ Public pUndoCell As Range
 Public pUndoValue As Variant
 
 ' --- Entry Point ---
-' Called by Workbook_SheetSelectionChange in ThisWorkbook
-Public Sub TryLaunchEnumSelector(Target As Range)
+' Called by Workbook_SheetBeforeDoubleClick in ThisWorkbook
+Public Function TryLaunchEnumSelector(Target As Range) As Boolean
     On Error GoTo ErrorHandler
     
+    TryLaunchEnumSelector = False ' Default
+    
     ' 1. Row Validation: Only activate for Row >= 4
-    If Target.Row < 4 Then Exit Sub
-    If Target.Cells.Count > 1 Then Exit Sub ' Multi-select ignored
+    If Target.Row < 4 Then Exit Function
+    If Target.Cells.Count > 1 Then Exit Function ' Multi-select ignored
     
     ' 2. Column Validation: Check Row 2 for Enum Key (Header)
     Dim enumKey As String
     ' Note: We assume the "Enum Key" is always in Row 2 of the data sheet.
     enumKey = Trim(CStr(Target.Worksheet.Cells(2, Target.Column).Value))
     
-    If Len(enumKey) = 0 Then Exit Sub
+    If Len(enumKey) = 0 Then Exit Function
     
     ' 3. Load Definitions (with Caching)
     Dim enumList As Variant
@@ -40,17 +42,19 @@ Public Sub TryLaunchEnumSelector(Target As Range)
         If UBound(enumList) >= LBound(enumList) Then
             ' Pass data to Form
             Form_EnumSelect.InitializeWithData enumKey, enumList
+            TryLaunchEnumSelector = True
             Form_EnumSelect.Show vbModal
         Else
             MsgBox "找不到 [" & enumKey & "] 的資料定義，請檢查列舉參考檔。", vbExclamation, "列舉定義缺失"
         End If
     End If
     
-    Exit Sub
+    Exit Function
 
 ErrorHandler:
     If CONST_DEBUG_MODE Then Debug.Print "[DEBUG] Error in TryLaunchEnumSelector: " & Err.Description
-End Sub
+    TryLaunchEnumSelector = False
+End Function
 
 ' --- Cache Management ---
 Private Function GetEnumList(key As String) As Variant

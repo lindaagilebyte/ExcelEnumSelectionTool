@@ -10,9 +10,12 @@ Attribute VB_Exposed = True
 Option Explicit
 
 ' --- Event Hook ---
-Private Sub Workbook_SheetSelectionChange(ByVal Sh As Object, ByVal Target As Range)
-    ' Delegate logic to the standard module to keep ThisWorkbook clean
-    Module_EnumSelector.TryLaunchEnumSelector Target
+Private Sub Workbook_SheetBeforeDoubleClick(ByVal Sh As Object, ByVal Target As Range, Cancel As Boolean)
+    ' Delegate logic to the standard module
+    ' If the module successfully launches the Form, we Cancel the native double-click edit mode
+    If Module_EnumSelector.TryLaunchEnumSelector(Target) Then
+        Cancel = True
+    End If
 End Sub
 
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
