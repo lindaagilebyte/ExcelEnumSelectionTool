@@ -22,14 +22,14 @@ Public Function TryLaunchEnumSelector(Target As Range) As Boolean
     
     TryLaunchEnumSelector = False ' Default
     
-    ' 1. Row Validation: Only activate for Row >= 4
-    If Target.Row < 4 Then Exit Function
+    ' 1. Row Validation: Only activate for Row >= 5
+    If Target.Row < 5 Then Exit Function
     If Target.Cells.Count > 1 Then Exit Function ' Multi-select ignored
     
-    ' 2. Column Validation: Check Row 2 for Enum Key (Header)
+    ' 2. Column Validation: Check Row 3 for Enum Key (Header)
     Dim enumKey As String
-    ' Note: We assume the "Enum Key" is always in Row 2 of the data sheet.
-    enumKey = Trim(CStr(Target.Worksheet.Cells(2, Target.Column).Value))
+    ' Note: We assume the "Enum Key" is always in Row 3 of the data sheet.
+    enumKey = Trim(CStr(Target.Worksheet.Cells(3, Target.Column).Value))
     
     If Len(enumKey) = 0 Then Exit Function
     
@@ -61,7 +61,7 @@ Private Function GetEnumList(key As String) As Variant
     ' Initialize Cache if needed (Cold Start)
     If pEnumCache Is Nothing Then
         Set pEnumCache = CreateObject("Scripting.Dictionary")
-        ScanReferenceFile
+        ScanReferenceFile GetRequiredEnumKeys()
     End If
     
     ' Warm Start Look up
@@ -95,7 +95,49 @@ Public Sub UndoEnumSelection()
 End Sub
 
 ' --- Reference File Scanning ---
-Private Sub ScanReferenceFile()
+Private Function GetRequiredEnumKeys() As Object
+    Dim requiredKeys As Object
+    Set requiredKeys = CreateObject("Scripting.Dictionary")
+    
+    Dim ws As Worksheet
+    Dim rng As Range
+    Dim c As Range
+    Dim val As String
+    
+    ' Scan all sheets in the current Data File (ThisWorkbook)
+    For Each ws In ThisWorkbook.Worksheets
+        ' Ignore utility or description sheets starting with #
+        If Left(ws.Name, 1) <> "#" Then
+            On Error Resume Next
+            Set rng = ws.UsedRange
+            On Error GoTo 0
+            
+            If Not rng Is Nothing Then
+                ' Check if Row 3 exists within the UsedRange
+                If rng.Row <= 3 And (rng.Row + rng.Rows.Count - 1) >= 3 Then
+                    ' Scan across Row 3 for valid keys
+                    Dim colIdx As Long
+                    Dim startCol As Long, endCol As Long
+                    startCol = rng.Column
+                    endCol = rng.Column + rng.Columns.Count - 1
+                    
+                    For colIdx = startCol To endCol
+                        val = Trim(CStr(ws.Cells(3, colIdx).Value))
+                        If Len(val) > 0 Then
+                            If Not requiredKeys.Exists(val) Then
+                                requiredKeys.Add val, True
+                            End If
+                        End If
+                    Next colIdx
+                End If
+            End If
+        End If
+    Next ws
+    
+    Set GetRequiredEnumKeys = requiredKeys
+End Function
+
+Private Sub ScanReferenceFile(requiredKeys As Object)
     Dim fso As Object
     Set fso = CreateObject("Scripting.FileSystemObject")
     
@@ -173,7 +215,7 @@ Private Sub ScanReferenceFile()
     
     For Each ws In sourceWb.Worksheets
         Application.StatusBar = "正在讀取列舉定義... (Sheet " & currentSheet & " of " & totalSheets & ")"
-        ScanWorksheet ws
+        ScanWorksheet ws, requiredKeys
         currentSheet = currentSheet + 1
     Next ws
     
@@ -192,7 +234,7 @@ Private Sub ScanReferenceFile()
     If CONST_DEBUG_MODE Then Debug.Print "[DEBUG] Cache built. Total Enums cached: " & pEnumCache.Count
 End Sub
 
-Private Sub ScanWorksheet(ws As Worksheet)
+Private Sub ScanWorksheet(ws As Worksheet, requiredKeys As Object)
     On Error Resume Next
     Dim rng As Range
     Set rng = ws.UsedRange
@@ -218,15 +260,17 @@ Private Sub ScanWorksheet(ws As Worksheet)
                 Dim keyName As String
                 keyName = Trim(CStr(keyCell.Value))
                 
-                ' Parse Data if Key is valid and not already cached
+                ' Parse Data if Key is valid, needed by Data file, and not already cached
                 If Len(keyName) > 0 Then
-                     If Not pEnumCache.Exists(keyName) Then
-                        Dim items As Variant
-                        items = ExtractColumnData(ws, c.Row + 1, c.Column)
-                        
-                        ' Only add if we found items
-                        If UBound(items) >= 0 Then
-                            pEnumCache.Add keyName, items
+                     If requiredKeys.Exists(keyName) Then
+                         If Not pEnumCache.Exists(keyName) Then
+                            Dim items As Variant
+                            items = ExtractColumnData(ws, c.Row + 1, c.Column)
+                            
+                            ' Only add if we found items
+                            If UBound(items) >= 0 Then
+                                pEnumCache.Add keyName, items
+                            End If
                         End If
                     End If
                 End If

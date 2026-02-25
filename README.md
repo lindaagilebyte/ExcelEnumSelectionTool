@@ -39,7 +39,7 @@ Once you open your generated or updated `.xlsm` file in Excel, ensure that **Mac
 
 ### 1. Triggering the Menu
 - **Single-Clicking:** Clicking a cell normally will just highlight the cell. You can copy, paste, or drag without any menus popping up.
-- **Double-Clicking:** Double-clicking an eligible cell (Row 4 or below, with a valid Enum Key in Row 2) will instantly launch the "Select Value" menu.
+- **Double-Clicking:** Double-clicking an eligible cell (Row 5 or below, with a valid Enum Key in Row 3) will instantly launch the "Select Value" menu.
 
 ### 2. Making a Selection
 When the menu opens:
