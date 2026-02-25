@@ -144,7 +144,10 @@ Private Sub ScanReferenceFile()
     Application.ScreenUpdating = False
     
     Dim tempPath As String
-    tempPath = Environ("TEMP") & "\" & REF_FILE_NAME
+    ' Generate a unique filename using a GUID to prevent read-locking collisions from zombie tasks
+    Dim tempGuid As String
+    tempGuid = Replace(Mid(CreateObject("Scriptlet.TypeLib").Guid, 2, 36), "-", "")
+    tempPath = Environ("TEMP") & "\" & tempGuid & "_" & REF_FILE_NAME
     
     On Error Resume Next
     If fso.FileExists(tempPath) Then fso.DeleteFile tempPath, True
